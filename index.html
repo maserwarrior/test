@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ลงทะเบียนใบหน้านักเรียน (V2)</title>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f4f6f9; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        /* พื้นที่แสดงผล (กล้อง หรือ รูปอัพโหลด) */
+        .preview-area { position: relative; width: 640px; height: 480px; background: #000; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        img#uploadedImage { max-width: 100%; max-height: 100%; display: none; } 
+        canvas { position: absolute; top: 0; left: 0; }
+        
+        .form-container { width: 300px; display: flex; flex-direction: column; gap: 15px; }
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        
+        .btn-group { display: flex; gap: 10px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; color: white; transition: 0.3s; }
+        .btn-save { background-color: #28a745; font-size: 16px; padding: 12px; }
+        .btn-save:hover { background-color: #218838; }
+        .btn-upload { background-color: #007bff; }
+        .btn-camera { background-color: #17a2b8; }
+        
+        /* ซ่อน input file ไว้ */
+        #fileInput { display: none; }
+        
+        #status { margin-top: 10px; text-align: center; font-weight: bold; }
+        .success { color: #28a745; } .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+
+    <h2>📝 ระบบลงทะเบียน (กล้อง + อัพโหลด)</h2>
+
+    <div class="container">
+        <div class="preview-area" id="previewContainer">
+            <video id="video" autoplay muted></video>
+            <img id="uploadedImage" alt="Upload Preview">
+        </div>
+
+        <div class="form-container">
+            <div class="btn-group">
+                <button class="btn-camera" onclick="useCamera()">📷 ใช้กล้อง</button>
+                <button class="btn-upload" onclick="document.getElementById('fileInput').click()">📁 อัพโหลดรูป</button>
+                <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)">
+            </div>
+            
+            <hr style="width: 100%; border: 0.5px solid #eee;">
+
+            <input type="text" id="classId" placeholder="ห้องเรียน (เช่น 1-1)">
+            <input type="text" id="studentId" placeholder="รหัสนักเรียน">
+            <select id="prefix">
+                <option value="ด.ช.">ด.ช.</option>
+                <option value="ด.ญ.">ด.ญ.</option>
+                <option value="นาย">นาย</option>
+                <option value="นางสาว">นางสาว</option>
+            </select>
+            <input type="text" id="name" placeholder="ชื่อ - นามสกุล">
+            <input type="number" id="no" placeholder="เลขที่">
+            
+            <button id="btnSave" class="btn-save" onclick="registerFace()" disabled>บันทึกข้อมูล</button>
+            <div id="status">กำลังโหลดโมเดล AI...</div>
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ อย่าลืมใส่ URL ของคุณตรงนี้
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5Icavnzqn8PdDznQYGh5H93FgGbru21GKFDuJRyqJEy6sFHHzYnOMNqhsG96NY0B5kg/exec';
+        
+        const video = document.getElementById('video');
+        const imgPreview = document.getElementById('uploadedImage');
+        const btnSave = document.getElementById('btnSave');
+        const statusDiv = document.getElementById('status');
+        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+
+        let isModelLoaded = false;
+        let mode = 'camera'; // 'camera' หรือ 'image'
+
+        // โหลดโมเดล
+        Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]).then(() => {
+            isModelLoaded = true;
+            useCamera(); // เริ่มต้นด้วยกล้อง
+        });
+
+        // 1. ฟังก์ชันเปลี่ยนมาใช้กล้อง
+        function useCamera() {
+            mode = 'camera';
+            video.style.display = 'block';
+            imgPreview.style.display = 'none';
+            navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => {
+                video.srcObject = stream;
+                statusDiv.innerHTML = "พร้อมใช้งาน (โหมดกล้อง)";
+                btnSave.disabled = false;
+                startDetectionLoop(); // เริ่มวาดกรอบหน้า
+            });
+        }
+
+        // 2. ฟังก์ชันจัดการเมื่ออัพโหลดไฟล์
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            mode = 'image';
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                imgPreview.src = e.target.result;
+                imgPreview.style.display = 'block';
+                video.style.display = 'none';
+                
+                // หยุดกล้องชั่วคราว
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+
+                // รอรูปโหลดเสร็จแล้ววาดกรอบ
+                imgPreview.onload = () => {
+                   detectFaceInImage(); 
+                };
+            };
+            reader.readAsDataURL(file);
+            statusDiv.innerHTML = "พร้อมใช้งาน (โหมดรูปภาพ)";
+        }
+
+        // ลูปวาดกรอบหน้า (สำหรับกล้อง)
+        video.addEventListener('play', () => {
+            const canvas = faceapi.createCanvasFromMedia(video);
+            canvas.id = 'overlay';
+            document.getElementById('previewContainer').append(canvas);
+            const displaySize = { width: video.width || 640, height: video.height || 480 };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            setInterval(async () => {
+                if (mode !== 'camera' || !isModelLoaded) return;
+                const detections = await faceapi.detectAllFaces(video).withFaceLandmarks();
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                faceapi.draw.drawDetections(canvas, resizedDetections);
+            }, 100);
+        });
+
+        // วาดกรอบหน้าครั้งเดียว (สำหรับรูปภาพ)
+        async function detectFaceInImage() {
+            // เคลียร์ Canvas เก่า
+            const oldCanvas = document.getElementById('overlay');
+            if (oldCanvas) oldCanvas.remove();
+
+            const canvas = faceapi.createCanvasFromMedia(imgPreview);
+            canvas.id = 'overlay';
+            document.getElementById('previewContainer').append(canvas);
+            const displaySize = { width: imgPreview.width, height: imgPreview.height };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            const detections = await faceapi.detectAllFaces(imgPreview).withFaceLandmarks();
+            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+            faceapi.draw.drawDetections(canvas, resizedDetections);
+        }
+
+        // 3. ฟังก์ชันบันทึก (ใช้ได้ทั้งคู่)
+        async function registerFace() {
+            if (!isModelLoaded) return;
+            
+            // เลือก Source ว่าจะเอาจากไหน
+            const inputSource = (mode === 'camera') ? video : imgPreview;
+
+            statusDiv.innerHTML = '<span class="loading">กำลังประมวลผล...</span>';
+            btnSave.disabled = true;
+
+            // ตรวจจับหน้า
+            const detection = await faceapi.detectSingleFace(inputSource).withFaceLandmarks().withFaceDescriptor();
+
+            if (!detection) {
+                statusDiv.innerHTML = '<span class="error">❌ ไม่พบใบหน้าในภาพ!</span>';
+                btnSave.disabled = false;
+                return;
+            }
+
+            // เตรียมข้อมูลส่ง
+            const descriptor = Array.from(detection.descriptor);
+            const payload = {
+                action: "register",
+                classId: document.getElementById('classId').value,
+                id: document.getElementById('studentId').value,
+                prefix: document.getElementById('prefix').value,
+                name: document.getElementById('name').value,
+                no: document.getElementById('no').value,
+                descriptors: JSON.stringify(descriptor)
+            };
+
+            // ส่งไป Google Sheets
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                statusDiv.innerHTML = '<span class="success">✅ บันทึกสำเร็จ!</span>';
+                
+                // Reset ฟอร์ม
+                document.getElementById('name').value = "";
+                document.getElementById('studentId').value = "";
+                setTimeout(() => { btnSave.disabled = false; statusDiv.innerHTML = "พร้อม"; }, 2000);
+            } catch (err) {
+                console.error(err);
+                statusDiv.innerHTML = '<span class="error">เกิดข้อผิดพลาด</span>';
+                btnSave.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

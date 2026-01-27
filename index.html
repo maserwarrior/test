@@ -3,22 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบเช็คชื่อด้วยใบหน้า AI</title>
+    <title>ระบบเช็คชื่อด้วยใบหน้า AI (Final UI)</title>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.10/css/pico.min.css">
     
     <style>
         body { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        /* Navigation */
         .nav-tabs { display: flex; gap: 10px; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
-        .nav-btn { background: none; border: none; padding: 10px 20px; font-size: 1.1rem; color: #666; cursor: pointer; border-radius: 8px 8px 0 0; }
+        .nav-btn { background: none; border: none; padding: 10px 20px; font-size: 1.1rem; color: #666; cursor: pointer; border-radius: 8px 8px 0 0; transition: 0.3s; }
+        .nav-btn:hover { background: #f0f0f0; }
         .nav-btn.active { background: #1095c1; color: white; font-weight: bold; }
         .tab-content { display: none; animation: fadeIn 0.4s; }
         .tab-content.active { display: block; }
         
-        /* Camera Box */
-        .cam-wrapper { position: relative; width: 640px; height: 480px; background: #000; margin: 0 auto; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        canvas { position: absolute; top: 0; left: 0; }
+        /* Camera Box - จัดกึ่งกลางและซ้อนทับ */
+        .cam-wrapper { 
+            position: relative; width: 640px; height: 480px; background: #000; margin: 0 auto; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: flex; justify-content: center; align-items: center;
+        }
+        video { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        canvas { position: absolute; top: 0; left: 0; z-index: 2; }
 
         /* Dashboard Helpers */
         .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.9em; font-weight: bold; }
@@ -30,37 +35,36 @@
 </head>
 <body>
 
-    <nav>
+    <nav style="margin-bottom: 10px;">
         <ul><li><strong>🏫 AI Face Attendance</strong></li></ul>
-        <ul><li id="aiStatus" style="color:orange;">⏳ กำลังโหลดสมอง AI...</li></ul>
+        <ul><li id="aiStatus" style="color:orange; font-weight:bold;">⏳ กำลังโหลดสมอง AI...</li></ul>
     </nav>
 
     <div class="nav-tabs">
-        <button class="nav-btn active" onclick="setTab('scan')">📸 เช็คชื่อ (Scan)</button>
-        <button class="nav-btn" onclick="setTab('register')">📝 ลงทะเบียน (Reg)</button>
-        <button class="nav-btn" onclick="setTab('dashboard')">📊 แดชบอร์ด (Report)</button>
+        <button class="nav-btn active" onclick="setTab('scan', event)">📸 เช็คชื่อ (Scan)</button>
+        <button class="nav-btn" onclick="setTab('register', event)">📝 ลงทะเบียน (Reg)</button>
+        <button class="nav-btn" onclick="setTab('dashboard', event)">📊 แดชบอร์ด (Report)</button>
     </div>
 
     <div id="scan" class="tab-content active">
         <article>
             <div class="grid">
                 <div>
-                    <label>ห้องเรียน</label>
-                    <input type="text" id="scanClassId" value="TestClass">
-                    <label>วันที่เช็คชื่อ</label>
-                    <input type="date" id="scanDate">
-                    <div class="grid">
-                        <button onclick="loadStudents()" class="secondary">1. โหลดข้อมูล</button>
+                    <label>ห้องเรียน <input type="text" id="scanClassId" value="TestClass"></label>
+                    <label>วันที่เช็คชื่อ <input type="date" id="scanDate"></label>
+                    <div class="grid" style="margin-top:20px;">
+                        <button onclick="loadStudents()" class="secondary" id="btnLoad">1. โหลดข้อมูล</button>
                         <button onclick="startScan()" id="btnStartScan" disabled>2. เริ่มสแกน</button>
                     </div>
+                    <p><small>หมายเหตุ: สีเขียว=ผ่าน, สีแดง=เช็คซ้ำ</small></p>
                 </div>
-                <div style="height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px;">
-                    <h6>📋 ประวัติการเช็คชื่อ (ล่าสุด)</h6>
+                <div style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px; background:#f9f9f9;">
+                    <h6 style="border-bottom:1px solid #ddd; padding-bottom:5px;">📋 ประวัติการเช็คชื่อ (Real-time)</h6>
                     <div id="scanLog"></div>
                 </div>
             </div>
-            <div class="cam-wrapper" id="scanCamBox">
-                <video id="scanVideo" autoplay muted></video>
+            <div class="cam-wrapper" id="scanCamBox" style="margin-top:20px;">
+                <video id="scanVideo" autoplay muted playsinline></video>
             </div>
         </article>
     </div>
@@ -69,17 +73,19 @@
         <article>
             <div class="grid">
                 <div>
-                    <label>ห้องเรียน</label><input type="text" id="regClassId" placeholder="เช่น 1-1">
-                    <label>รหัสนักเรียน</label><input type="text" id="regId">
-                    <label>ชื่อ-นามสกุล</label><input type="text" id="regName">
-                    <button onclick="registerFace()" id="btnReg" disabled>บันทึกหน้า</button>
-                    <p id="regStatus"></p>
+                    <header>ข้อมูลนักเรียนใหม่</header>
+                    <label>ห้องเรียน <input type="text" id="regClassId" placeholder="เช่น 1-1"></label>
+                    <label>รหัสนักเรียน <input type="text" id="regId" placeholder="เช่น 001"></label>
+                    <label>ชื่อ-นามสกุล <input type="text" id="regName" placeholder="สมชาย ใจดี"></label>
+                    <button onclick="registerFace()" id="btnReg" disabled style="margin-top:20px;">บันทึกใบหน้า</button>
+                    <p id="regStatus" style="margin-top:10px; font-weight:bold;"></p>
                 </div>
                 <div>
-                    <div class="cam-wrapper" id="regCamBox" style="width:100%; height:300px;">
-                        <video id="regVideo" autoplay muted></video>
+                    <div class="cam-wrapper" id="regCamBox" style="width:100%; height:350px;">
+                        <video id="regVideo" autoplay muted playsinline></video>
                     </div>
-                    <button onclick="startRegCamera()" class="outline" style="margin-top:10px; width:100%;">เปิดกล้อง</button>
+                    <button onclick="startRegCamera()" class="outline" style="margin-top:10px; width:100%;">📷 เปิดกล้องลงทะเบียน</button>
+                     <p><small style="color:#666;">*กรุณารอให้กรอบสีฟ้าขึ้นที่หน้าก่อนกดบันทึก</small></p>
                 </div>
             </div>
         </article>
@@ -87,22 +93,22 @@
 
     <div id="dashboard" class="tab-content">
         <article>
-            <div class="grid" style="align-items: end;">
+            <div class="grid" style="align-items: end; gap:10px;">
                 <label>ห้องเรียน <input type="text" id="dashClass" value="TestClass"></label>
                 <label>วันที่ (ว่าง=ดูรวม) <select id="dashDate"><option value="">-- ภาพรวม --</option></select></label>
                 <label>ค้นหา <input type="text" id="dashSearch" placeholder="ชื่อ..."></label>
-                <button onclick="loadReport()">🔍 เรียกดู</button>
+                <button onclick="loadReport()" style="margin-bottom: var(--spacing);">🔍 เรียกดู</button>
             </div>
             
             <div id="sumBox" style="display:none; margin: 15px 0;" class="grid">
-                <div style="background:#e8f5e9; padding:10px; text-align:center;">มา: <b id="sumP">0</b></div>
-                <div style="background:#ffebee; padding:10px; text-align:center;">ขาด: <b id="sumA">0</b></div>
+                <div style="background:#e8f5e9; padding:15px; text-align:center; border-radius:8px;">✅ มา: <b id="sumP" style="font-size:1.2em;">0</b></div>
+                <div style="background:#ffebee; padding:15px; text-align:center; border-radius:8px;">❌ ขาด: <b id="sumA" style="font-size:1.2em;">0</b></div>
             </div>
 
             <div style="overflow-x:auto;">
-                <table role="grid">
+                <table role="grid" class="striped">
                     <thead id="dashHead"></thead>
-                    <tbody id="dashBody"><tr><td>กดเรียกดูข้อมูล...</td></tr></tbody>
+                    <tbody id="dashBody"><tr><td colspan="5" style="text-align:center;">กดปุ่ม "เรียกดู" เพื่อโหลดข้อมูล</td></tr></tbody>
                 </table>
             </div>
         </article>
@@ -112,7 +118,7 @@
         // 🔥🔥🔥 แก้ไข URL ตรงนี้เป็นของคุณ 🔥🔥🔥
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5Icavnzqn8PdDznQYGh5H93FgGbru21GKFDuJRyqJEy6sFHHzYnOMNqhsG96NY0B5kg/exec';
         
-        // ใช้ CDN เพื่อความง่าย (หรือแก้เป็น ./models ถ้ามีไฟล์ในเครื่อง)
+        // ใช้ CDN (ถ้าเน็ตช้าให้เปลี่ยนเป็น ./models แล้วเอาไฟล์ไปวาง)
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
 
         let faceMatcher = null;
@@ -122,151 +128,125 @@
 
         // --- INIT ---
         window.onload = async () => {
-            // ตั้งค่าวันที่ปัจจุบัน
             document.getElementById('scanDate').valueAsDate = new Date();
-            
             try {
                 await Promise.all([
+                    // โหลดเฉพาะรุ่นที่จำเป็นเพื่อความเร็ว
                     faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
                     faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                 ]);
                 isModelReady = true;
                 document.getElementById('aiStatus').innerHTML = "✅ AI พร้อมใช้งาน";
-                document.getElementById('aiStatus').style.color = "green";
+                document.getElementById('aiStatus').style.color = "#2ecc71";
             } catch (e) {
-                document.getElementById('aiStatus').innerHTML = "❌ โหลด AI พลาด (เช็คเน็ต)";
+                console.error(e);
+                document.getElementById('aiStatus').innerHTML = "❌ โหลด AI พลาด (ตรวจสอบอินเทอร์เน็ต)";
+                document.getElementById('aiStatus').style.color = "#e74c3c";
             }
         };
 
-        // --- TABS ---
-        function setTab(tab) {
-            stopCamera();
+        // --- TABS & CAMERA CONTROL ---
+        function setTab(tabId, event) {
+            stopCamera(); // ปิดกล้องทุกครั้งที่สลับแท็บ
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tab).classList.add('active');
-            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            if(event) event.currentTarget.classList.add('active');
         }
 
         function stopCamera() {
             if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-            document.querySelectorAll('video').forEach(v => v.srcObject = null);
+            // เคลียร์ video source
+            document.querySelectorAll('video').forEach(v => { v.srcObject = null; });
+            // ลบ canvas ทิ้งให้หมด
             document.querySelectorAll('canvas').forEach(c => c.remove());
         }
 
-        // --- SCAN LOGIC ---
+        // --- LOGIC 1: SCAN (แก้ไขใหม่: สีตามสถานะ) ---
         async function loadStudents() {
             const classId = document.getElementById('scanClassId').value;
-            const btn = event.target; btn.textContent = "⏳..."; btn.disabled = true;
+            const btn = document.getElementById('btnLoad'); btn.textContent = "⏳ กำลังโหลด..."; btn.disabled = true;
             
             try {
                 const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getStudents", classId }) });
                 const data = await res.json();
                 
-                if (data.students && data.students.length > 0) {
+                if (data.status === "success" && data.students.length > 0) {
+                    // สร้าง LabeledDescriptors สำหรับทำ Matching
                     const labeled = data.students.map(s => new faceapi.LabeledFaceDescriptors(s.name, [new Float32Array(JSON.parse(s.descriptors))]));
-                    faceMatcher = new faceapi.FaceMatcher(labeled, 0.6);
-                    alert(`โหลด ${data.students.length} คน พร้อมสแกน!`);
+                    faceMatcher = new faceapi.FaceMatcher(labeled, 0.6); // 0.6 คือความแม่นยำ
+                    alert(`โหลดข้อมูลสำเร็จ: ${data.students.length} คน`);
                     document.getElementById('btnStartScan').disabled = false;
-                } else { alert("ไม่พบข้อมูลนักเรียน"); }
-            } catch (e) { alert("Error: " + e); }
+                } else { alert("ไม่พบข้อมูลนักเรียนในห้องนี้"); }
+            } catch (e) { alert("Error loading data: " + e); }
             btn.textContent = "1. โหลดข้อมูล"; btn.disabled = false;
         }
 
         async function startScan() {
-            // 1. ปิดกล้องตัวเก่าก่อนเสมอ (เพื่อไม่ให้แย่งกัน)
-            stopCamera(); 
-            
+            stopCamera();
             const video = document.getElementById('scanVideo');
-            
+            const camBox = document.getElementById('scanCamBox');
+
             try {
-                // 2. ขอสิทธิ์เปิดกล้อง
                 const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                 currentStream = stream;
                 video.srcObject = stream;
                 
-                // 3. สั่งเล่นวิดีโอ แล้วรอจนกว่ามันจะเริ่มเล่นจริงๆ (Promise wrapper)
-                await new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        resolve();
-                    };
-                });
-                
+                await new Promise(r => { video.onloadedmetadata = r; });
                 video.play();
+                // รอจนภาพมาจริง
+                while (video.videoWidth === 0) await new Promise(r => setTimeout(r, 100));
 
-                // 4. *** จุดสำคัญที่แก้ *** : รอจนกว่าขนาดวิดีโอจะมาครบ (กัน Error: media has not finished)
-                while (video.videoWidth === 0 || video.videoHeight === 0) {
-                     await new Promise(r => setTimeout(r, 100)); // เช็คทุก 0.1 วิ จนกว่าภาพจะมา
-                }
-
-                // --- เมื่อถึงจุดนี้ มั่นใจแล้วว่ากล้องพร้อม 100% ---
-
-                // สร้าง Canvas
                 const canvas = faceapi.createCanvasFromMedia(video);
-                document.getElementById('scanCamBox').append(canvas);
-                
-                const displaySize = { width: video.videoWidth, height: video.videoHeight };
-                faceapi.matchDimensions(canvas, displaySize);
+                camBox.append(canvas);
+                const size = { width: video.videoWidth, height: video.videoHeight };
+                faceapi.matchDimensions(canvas, size);
 
-                const checked = new Set();
-                
-                // เริ่มลูปตรวจจับ
+                const checked = new Set(); // จำคนที่เช็คในรอบนี้
+
                 setInterval(async () => {
-                    // ถ้า AI ยังโหลดไม่เสร็จ หรือกล้องปิดไปแล้ว ให้ข้าม
                     if (!isModelReady || video.paused || video.ended) return;
-
-                    // 1. ตรวจจับใบหน้า
                     const detections = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
-                    
-                    // 2. ปรับขนาดกรอบให้ตรงกับวิดีโอ
-                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                    
-                    // 3. เคลียร์กรอบเก่า
+                    const resized = faceapi.resizeResults(detections, size);
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
-                    // 4. วาดกรอบ
-                    resizedDetections.forEach(d => {
-                        let label = "Checking...";
-                        let boxColor = "#1e90ff"; // สีฟ้า (Default)
+                    resized.forEach(d => {
+                        let label = "กำลังตรวจสอบ...";
+                        let boxColor = "#1e90ff"; // 🔵 สีฟ้า (Default: Checking)
 
-                        // ถ้าโหลดข้อมูลนักเรียนมาแล้ว ให้ลองเทียบหน้าดู
                         if (faceMatcher) {
-                            const bestMatch = faceMatcher.findBestMatch(d.descriptor);
+                            const best = faceMatcher.findBestMatch(d.descriptor);
                             
-                            // ถ้าเจอตัวจริง (ไม่ใช่ unknown)
-                            if (bestMatch.label !== "unknown") {
-                                label = bestMatch.toString();
-                                boxColor = "#00ff00"; // สีเขียว
-                                
-                                // เช็คชื่อ (ส่งข้อมูลไปหลังบ้าน)
-                                if (!checked.has(bestMatch.label)) {
-                                    checked.add(bestMatch.label);
-                                    logCheckIn(bestMatch.label);
-                                    // กันสแกนรัวๆ: ลบออกจาก list หลังจาก 1 นาที
-                                    setTimeout(() => checked.delete(bestMatch.label), 60000); 
-                                }
+                            if (best.label === "unknown") {
+                                label = "ไม่รู้จัก";
+                                boxColor = "#FFA500"; // 🟠 สีส้ม (Unknown)
                             } else {
-                                label = "Unknown";
-                                boxColor = "#ff0000"; // สีแดง
+                                // คนที่รู้จัก
+                                if (checked.has(best.label)) {
+                                    // 🔴 เช็คไปแล้ว
+                                    label = "⛔ เช็คไปแล้ว (กรุณาออกจากเฟรม)";
+                                    boxColor = "#ff0000"; 
+                                } else {
+                                    // 🟢 มาใหม่ (เช็คผ่าน)
+                                    label = "✅ " + best.toString();
+                                    boxColor = "#00ff00";
+                                    checked.add(best.label);
+                                    logCheckIn(best.label);
+                                }
                             }
                         }
-
-                        // สั่งวาดลงจอ
-                        const drawBox = new faceapi.draw.DrawBox(d.detection.box, { label: label, boxColor: boxColor });
-                        drawBox.draw(canvas);
+                        new faceapi.draw.DrawBox(d.detection.box, { label, boxColor }).draw(canvas);
                     });
-                }, 100); // ทำงานทุก 0.1 วินาที
+                }, 100);
 
-            } catch (err) {
-                console.error(err);
-                alert("เกิดข้อผิดพลาด: " + err.message);
-            }
+            } catch (err) { alert("เปิดกล้องไม่ได้: " + err.message); }
         }
 
         function logCheckIn(name) {
             const time = new Date().toLocaleTimeString('th-TH');
             const log = document.getElementById('scanLog');
-            log.innerHTML = `<div style="color:green">✅ ${time} - ${name}</div>` + log.innerHTML;
+            log.innerHTML = `<div style="color:green; border-bottom:1px dotted #eee; padding:4px;">✅ ${time} - ${name}</div>` + log.innerHTML;
             
             // ส่งไป Backend
             fetch(SCRIPT_URL, {
@@ -280,53 +260,101 @@
             });
         }
 
-        // --- REGISTER LOGIC ---
+        // --- LOGIC 2: REGISTER (แก้ไขใหม่: เพิ่มกรอบ) ---
         async function startRegCamera() {
             stopCamera();
             const video = document.getElementById('regVideo');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-            currentStream = stream;
-            video.srcObject = stream;
-            document.getElementById('btnReg').disabled = false;
+            const camBox = document.getElementById('regCamBox');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+                currentStream = stream;
+                video.srcObject = stream;
+                
+                await new Promise(r => { video.onloadedmetadata = r; });
+                video.play();
+                while (video.videoWidth === 0) await new Promise(r => setTimeout(r, 100));
+
+                // เพิ่มส่วนวาดกรอบสำหรับหน้า Register
+                const canvas = faceapi.createCanvasFromMedia(video);
+                camBox.append(canvas);
+                const size = { width: video.videoWidth, height: video.videoHeight };
+                faceapi.matchDimensions(canvas, size);
+
+                setInterval(async () => {
+                    if (!isModelReady || video.paused || video.ended) return;
+                    // ใช้ detectSingleFace เพราะลงทะเบียนทีละคน
+                    const detection = await faceapi.detectSingleFace(video).withFaceLandmarks();
+                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                    if (detection) {
+                        const resized = faceapi.resizeResults(detection, size);
+                        // วาดกรอบสีฟ้าธรรมดา
+                        new faceapi.draw.DrawBox(resized.detection.box, { label: "พร้อมบันทึก", boxColor: "#1e90ff" }).draw(canvas);
+                    }
+                }, 100);
+
+                document.getElementById('btnReg').disabled = false;
+
+            } catch (err) { alert("เปิดกล้องไม่ได้: " + err.message); }
         }
 
         async function registerFace() {
             const video = document.getElementById('regVideo');
             const btn = document.getElementById('btnReg');
             const stat = document.getElementById('regStatus');
-            btn.disabled = true; stat.innerHTML = "⏳ กำลังประมวลผล...";
+            
+            if(!isModelReady) { stat.innerHTML = "❌ AI ยังไม่พร้อม"; return; }
 
-            const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
-            if (!det) { stat.innerHTML = "❌ ไม่พบหน้า"; btn.disabled = false; return; }
+            btn.disabled = true; stat.innerHTML = "⏳ กำลังประมวลผลใบหน้า...";
+            stat.style.color = "orange";
 
-            const payload = {
-                action: "register",
-                classId: document.getElementById('regClassId').value,
-                id: document.getElementById('regId').value,
-                prefix: "", name: document.getElementById('regName').value, no: "",
-                descriptors: JSON.stringify(Array.from(det.descriptor))
-            };
+            try {
+                 // ตรวจจับครั้งสุดท้ายเพื่อบันทึก
+                const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+                if (!det) { throw new Error("ไม่พบใบหน้าในกรอบ กรุณาลองใหม่"); }
 
-            fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) })
-                .then(() => { stat.innerHTML = "✅ บันทึกแล้ว!"; btn.disabled = false; })
-                .catch(e => { stat.innerHTML = "❌ Error"; btn.disabled = false; });
+                stat.innerHTML = "⏳ กำลังส่งข้อมูลไปบันทึก...";
+                
+                const payload = {
+                    action: "register",
+                    classId: document.getElementById('regClassId').value,
+                    id: document.getElementById('regId').value,
+                    prefix: "", name: document.getElementById('regName').value, no: "",
+                    descriptors: JSON.stringify(Array.from(det.descriptor))
+                };
+
+                await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+                stat.innerHTML = "✅ บันทึกข้อมูลสำเร็จ!"; stat.style.color = "green";
+                // เคลียร์ฟอร์ม
+                document.getElementById('regId').value = "";
+                document.getElementById('regName').value = "";
+                setTimeout(() => { stat.innerHTML = ""; btn.disabled = false; }, 3000);
+
+            } catch (e) {
+                stat.innerHTML = "❌ Error: " + e.message; stat.style.color = "red";
+                btn.disabled = false;
+            }
         }
 
-        // --- DASHBOARD LOGIC ---
+        // --- LOGIC 3: DASHBOARD (เหมือนเดิม) ---
         async function loadReport() {
             const cls = document.getElementById('dashClass').value;
             const tbody = document.getElementById('dashBody');
-            tbody.innerHTML = "<tr><td>⏳ โหลด...</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='5'>⏳ กำลังโหลดข้อมูล...</td></tr>";
 
-            const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getReport", classId: cls }) });
-            reportData = await res.json();
-            
-            // Update Date Dropdown
-            const sel = document.getElementById('dashDate');
-            if (sel.options.length === 1) {
-                reportData.dates.forEach(d => sel.add(new Option(d, d)));
-            }
-            renderTable();
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getReport", classId: cls }) });
+                reportData = await res.json();
+                
+                if(reportData.status === "error") throw new Error(reportData.message);
+
+                // Update Date Dropdown
+                const sel = document.getElementById('dashDate');
+                if (sel.options.length === 1 && reportData.dates.length > 0) {
+                    reportData.dates.forEach(d => sel.add(new Option(d, d)));
+                }
+                renderTable();
+            } catch(e) { tbody.innerHTML = `<tr><td colspan='5' style="color:red">❌ Error: ${e.message}</td></tr>`; }
         }
 
         function renderTable() {
@@ -336,47 +364,44 @@
             const tbody = document.getElementById('dashBody');
             const sumBox = document.getElementById('sumBox');
             
-            if (!reportData || !reportData.students) return;
+            if (!reportData || !reportData.students) { tbody.innerHTML = "<tr><td colspan='5'>ไม่มีข้อมูล</td></tr>"; return; }
 
-            const filtered = reportData.students.filter(s => s.name.toLowerCase().includes(term));
+            const filtered = reportData.students.filter(s => s.name.toLowerCase().includes(term) || String(s.id).includes(term));
             let html = "";
 
             if (date) {
-                // รายวัน
                 sumBox.style.display = "flex";
-                thead.innerHTML = `<tr><th>ชื่อ</th><th>สถานะ (${date})</th></tr>`;
+                thead.innerHTML = `<tr><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>สถานะ (${date})</th></tr>`;
                 let p = 0;
                 filtered.forEach(s => {
                     const st = s.attendance[date] || "ขาด";
                     const isP = st !== "ขาด";
                     if (isP) p++;
-                    html += `<tr><td>${s.name}</td><td><span class="status-badge ${isP?'present':'absent'}">${isP?'✅ '+st:'❌ ขาด'}</span></td></tr>`;
+                    html += `<tr><td>${s.id}</td><td>${s.name}</td><td><span class="status-badge ${isP?'present':'absent'}">${isP?'✅ '+st:'❌ ขาด'}</span></td></tr>`;
                 });
                 document.getElementById('sumP').innerText = p;
                 document.getElementById('sumA').innerText = filtered.length - p;
             } else {
-                // ภาพรวม
                 sumBox.style.display = "none";
-                let h = "<tr><th>ชื่อ</th>";
+                let h = "<tr><th>รหัส</th><th>ชื่อ</th>";
                 reportData.dates.forEach(d => h += `<th>${d.split('/')[0]}/${d.split('/')[1]}</th>`);
                 thead.innerHTML = h + "</tr>";
                 
                 filtered.forEach(s => {
-                    html += `<tr><td>${s.name}</td>`;
+                    html += `<tr><td>${s.id}</td><td>${s.name}</td>`;
                     reportData.dates.forEach(d => {
                         const isP = (s.attendance[d] && s.attendance[d] !== "ขาด");
-                        html += `<td>${isP?'✅':'❌'}</td>`;
+                        html += `<td style="text-align:center;">${isP?'✅':'❌'}</td>`;
                     });
                     html += "</tr>";
                 });
             }
-            tbody.innerHTML = html;
+            tbody.innerHTML = html || "<tr><td colspan='5'>ไม่พบข้อมูลที่ค้นหา</td></tr>";
         }
 
-        // Auto trigger render on change
+        // Auto triggers
         document.getElementById('dashDate').onchange = renderTable;
         document.getElementById('dashSearch').onkeyup = renderTable;
-
     </script>
 </body>
 </html>

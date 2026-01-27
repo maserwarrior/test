@@ -174,37 +174,93 @@
         }
 
         async function startScan() {
-            stopCamera();
+            // 1. ปิดกล้องตัวเก่าก่อนเสมอ (เพื่อไม่ให้แย่งกัน)
+            stopCamera(); 
+            
             const video = document.getElementById('scanVideo');
-            const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-            currentStream = stream;
-            video.srcObject = stream;
             
-            const canvas = faceapi.createCanvasFromMedia(video);
-            document.getElementById('scanCamBox').append(canvas);
-            const size = { width: 640, height: 480 };
-            faceapi.matchDimensions(canvas, size);
-
-            let checked = new Set();
-            
-            setInterval(async () => {
-                if (!faceMatcher) return;
-                const detections = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
-                const resized = faceapi.resizeResults(detections, size);
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-
-                resized.forEach(d => {
-                    const best = faceMatcher.findBestMatch(d.descriptor);
-                    new faceapi.draw.DrawBox(d.detection.box, { label: best.toString() }).draw(canvas);
-
-                    if (best.label !== "unknown" && !checked.has(best.label)) {
-                        checked.add(best.label);
-                        logCheckIn(best.label);
-                        // รีเซ็ตให้สแกนซ้ำได้ทุก 1 นาที (หรือลบออกถ้าอยากให้สแกนได้ครั้งเดียวต่อเปิดกล้อง)
-                         setTimeout(() => checked.delete(best.label), 60000); 
-                    }
+            try {
+                // 2. ขอสิทธิ์เปิดกล้อง
+                const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+                currentStream = stream;
+                video.srcObject = stream;
+                
+                // 3. สั่งเล่นวิดีโอ แล้วรอจนกว่ามันจะเริ่มเล่นจริงๆ (Promise wrapper)
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        resolve();
+                    };
                 });
-            }, 200);
+                
+                video.play();
+
+                // 4. *** จุดสำคัญที่แก้ *** : รอจนกว่าขนาดวิดีโอจะมาครบ (กัน Error: media has not finished)
+                while (video.videoWidth === 0 || video.videoHeight === 0) {
+                     await new Promise(r => setTimeout(r, 100)); // เช็คทุก 0.1 วิ จนกว่าภาพจะมา
+                }
+
+                // --- เมื่อถึงจุดนี้ มั่นใจแล้วว่ากล้องพร้อม 100% ---
+
+                // สร้าง Canvas
+                const canvas = faceapi.createCanvasFromMedia(video);
+                document.getElementById('scanCamBox').append(canvas);
+                
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                faceapi.matchDimensions(canvas, displaySize);
+
+                const checked = new Set();
+                
+                // เริ่มลูปตรวจจับ
+                setInterval(async () => {
+                    // ถ้า AI ยังโหลดไม่เสร็จ หรือกล้องปิดไปแล้ว ให้ข้าม
+                    if (!isModelReady || video.paused || video.ended) return;
+
+                    // 1. ตรวจจับใบหน้า
+                    const detections = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
+                    
+                    // 2. ปรับขนาดกรอบให้ตรงกับวิดีโอ
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    
+                    // 3. เคลียร์กรอบเก่า
+                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+                    // 4. วาดกรอบ
+                    resizedDetections.forEach(d => {
+                        let label = "Checking...";
+                        let boxColor = "#1e90ff"; // สีฟ้า (Default)
+
+                        // ถ้าโหลดข้อมูลนักเรียนมาแล้ว ให้ลองเทียบหน้าดู
+                        if (faceMatcher) {
+                            const bestMatch = faceMatcher.findBestMatch(d.descriptor);
+                            
+                            // ถ้าเจอตัวจริง (ไม่ใช่ unknown)
+                            if (bestMatch.label !== "unknown") {
+                                label = bestMatch.toString();
+                                boxColor = "#00ff00"; // สีเขียว
+                                
+                                // เช็คชื่อ (ส่งข้อมูลไปหลังบ้าน)
+                                if (!checked.has(bestMatch.label)) {
+                                    checked.add(bestMatch.label);
+                                    logCheckIn(bestMatch.label);
+                                    // กันสแกนรัวๆ: ลบออกจาก list หลังจาก 1 นาที
+                                    setTimeout(() => checked.delete(bestMatch.label), 60000); 
+                                }
+                            } else {
+                                label = "Unknown";
+                                boxColor = "#ff0000"; // สีแดง
+                            }
+                        }
+
+                        // สั่งวาดลงจอ
+                        const drawBox = new faceapi.draw.DrawBox(d.detection.box, { label: label, boxColor: boxColor });
+                        drawBox.draw(canvas);
+                    });
+                }, 100); // ทำงานทุก 0.1 วินาที
+
+            } catch (err) {
+                console.error(err);
+                alert("เกิดข้อผิดพลาด: " + err.message);
+            }
         }
 
         function logCheckIn(name) {

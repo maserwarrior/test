@@ -116,9 +116,7 @@
 
     <script>
         // 🔥🔥🔥 แก้ไข URL ตรงนี้เป็นของคุณ 🔥🔥🔥
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5Icavnzqn8PdDznQYGh5H93FgGbru21GKFDuJRyqJEy6sFHHzYnOMNqhsG96NY0B5kg/exec';
-        
-        // ใช้ CDN (ถ้าเน็ตช้าให้เปลี่ยนเป็น ./models แล้วเอาไฟล์ไปวาง)
+        const SCRIPT_URL = 'URL_APPS_SCRIPT_ของคุณ'; 
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
 
         let faceMatcher = null;
@@ -126,60 +124,54 @@
         let isModelReady = false;
         let reportData = null;
 
+        // 🔥 สร้างตัวแปรนี้ไว้ข้างนอก เพื่อเก็บรายชื่อคนมาเรียน
+        let checkedStudents = new Set(); 
+
         // --- INIT ---
         window.onload = async () => {
             document.getElementById('scanDate').valueAsDate = new Date();
-            try {
+            // ... (โค้ดโหลด AI เหมือนเดิม) ...
+             try {
                 await Promise.all([
-                    // โหลดเฉพาะรุ่นที่จำเป็นเพื่อความเร็ว
                     faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
                     faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                 ]);
                 isModelReady = true;
                 document.getElementById('aiStatus').innerHTML = "✅ AI พร้อมใช้งาน";
-                document.getElementById('aiStatus').style.color = "#2ecc71";
-            } catch (e) {
-                console.error(e);
-                document.getElementById('aiStatus').innerHTML = "❌ โหลด AI พลาด (ตรวจสอบอินเทอร์เน็ต)";
-                document.getElementById('aiStatus').style.color = "#e74c3c";
-            }
+            } catch (e) { /*...*/ }
         };
 
-        // --- TABS & CAMERA CONTROL ---
-        function setTab(tabId, event) {
-            stopCamera(); // ปิดกล้องทุกครั้งที่สลับแท็บ
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            if(event) event.currentTarget.classList.add('active');
-        }
+        // ... (ฟังก์ชัน setTab, stopCamera เหมือนเดิม) ...
 
-        function stopCamera() {
-            if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-            // เคลียร์ video source
-            document.querySelectorAll('video').forEach(v => { v.srcObject = null; });
-            // ลบ canvas ทิ้งให้หมด
-            document.querySelectorAll('canvas').forEach(c => c.remove());
-        }
-
-        // --- LOGIC 1: SCAN (แก้ไขใหม่: สีตามสถานะ) ---
+        // --- 1. SCAN LOGIC (แก้ไขใหม่) ---
         async function loadStudents() {
             const classId = document.getElementById('scanClassId').value;
-            const btn = document.getElementById('btnLoad'); btn.textContent = "⏳ กำลังโหลด..."; btn.disabled = true;
+            const btn = document.getElementById('btnLoad'); 
+            btn.textContent = "⏳ กำลังโหลด..."; btn.disabled = true;
             
             try {
                 const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getStudents", classId }) });
                 const data = await res.json();
                 
                 if (data.status === "success" && data.students.length > 0) {
-                    // สร้าง LabeledDescriptors สำหรับทำ Matching
                     const labeled = data.students.map(s => new faceapi.LabeledFaceDescriptors(s.name, [new Float32Array(JSON.parse(s.descriptors))]));
-                    faceMatcher = new faceapi.FaceMatcher(labeled, 0.6); // 0.6 คือความแม่นยำ
-                    alert(`โหลดข้อมูลสำเร็จ: ${data.students.length} คน`);
+                    faceMatcher = new faceapi.FaceMatcher(labeled, 0.6);
+                    
+                    // 🔥 จุดสำคัญ: เคลียร์รายชื่อเก่า แล้วโหลดสถานะล่าสุดจาก Server ใส่เข้าไปเลย
+                    checkedStudents.clear();
+                    let alreadyCount = 0;
+                    data.students.forEach(s => {
+                        if (s.isChecked) { // ถ้า Server บอกว่ามาแล้ว
+                            checkedStudents.add(s.name);
+                            alreadyCount++;
+                        }
+                    });
+
+                    alert(`โหลดสำเร็จ ${data.students.length} คน\n(มาเรียนแล้ววันนี้: ${alreadyCount} คน)`);
                     document.getElementById('btnStartScan').disabled = false;
-                } else { alert("ไม่พบข้อมูลนักเรียนในห้องนี้"); }
-            } catch (e) { alert("Error loading data: " + e); }
+                } else { alert("ไม่พบข้อมูลนักเรียน"); }
+            } catch (e) { alert("Error: " + e); }
             btn.textContent = "1. โหลดข้อมูล"; btn.disabled = false;
         }
 
@@ -195,7 +187,6 @@
                 
                 await new Promise(r => { video.onloadedmetadata = r; });
                 video.play();
-                // รอจนภาพมาจริง
                 while (video.videoWidth === 0) await new Promise(r => setTimeout(r, 100));
 
                 const canvas = faceapi.createCanvasFromMedia(video);
@@ -203,7 +194,7 @@
                 const size = { width: video.videoWidth, height: video.videoHeight };
                 faceapi.matchDimensions(canvas, size);
 
-                const checked = new Set(); // จำคนที่เช็คในรอบนี้
+                // ไม่ต้องสร้าง checked = new Set() ตรงนี้แล้ว ใช้ตัวแปร Global แทน
 
                 setInterval(async () => {
                     if (!isModelReady || video.paused || video.ended) return;
@@ -212,26 +203,23 @@
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
                     resized.forEach(d => {
-                        let label = "กำลังตรวจสอบ...";
-                        let boxColor = "#1e90ff"; // 🔵 สีฟ้า (Default: Checking)
+                        let label = "Checking...";
+                        let boxColor = "#1e90ff"; 
 
                         if (faceMatcher) {
                             const best = faceMatcher.findBestMatch(d.descriptor);
                             
                             if (best.label === "unknown") {
-                                label = "ไม่รู้จัก";
-                                boxColor = "#FFA500"; // 🟠 สีส้ม (Unknown)
+                                label = "ไม่รู้จัก"; boxColor = "orange";
                             } else {
-                                // คนที่รู้จัก
-                                if (checked.has(best.label)) {
-                                    // 🔴 เช็คไปแล้ว
-                                    label = "⛔ เช็คไปแล้ว (กรุณาออกจากเฟรม)";
-                                    boxColor = "#ff0000"; 
+                                // เช็คจากตัวแปร Global
+                                if (checkedStudents.has(best.label)) {
+                                    label = "⛔ มาแล้ว (" + best.label + ")";
+                                    boxColor = "red"; // ขึ้นแดงเลยเพราะรู้ว่ามาแล้ว
                                 } else {
-                                    // 🟢 มาใหม่ (เช็คผ่าน)
                                     label = "✅ " + best.toString();
                                     boxColor = "#00ff00";
-                                    checked.add(best.label);
+                                    checkedStudents.add(best.label); // จำไว้ทันที
                                     logCheckIn(best.label);
                                 }
                             }
@@ -240,15 +228,14 @@
                     });
                 }, 100);
 
-            } catch (err) { alert("เปิดกล้องไม่ได้: " + err.message); }
+            } catch (err) { alert("Error: " + err.message); }
         }
 
         function logCheckIn(name) {
             const time = new Date().toLocaleTimeString('th-TH');
             const log = document.getElementById('scanLog');
-            log.innerHTML = `<div style="color:green; border-bottom:1px dotted #eee; padding:4px;">✅ ${time} - ${name}</div>` + log.innerHTML;
+            log.innerHTML = `<div style="color:green; border-bottom:1px dotted #eee;">✅ ${time} - ${name}</div>` + log.innerHTML;
             
-            // ส่งไป Backend
             fetch(SCRIPT_URL, {
                 method: 'POST',
                 body: JSON.stringify({
@@ -257,9 +244,14 @@
                     date: document.getElementById('scanDate').value,
                     id: name
                 })
+            }).then(res => res.json()).then(data => {
+                // ถ้า Server ตอบกลับว่า Duplicate (กันพลาดอีกชั้น)
+                if(data.status === "duplicate") {
+                    console.log("Already checked in backend");
+                    checkedStudents.add(name); // make sure it's in the set
+                }
             });
         }
-
         // --- LOGIC 2: REGISTER (แก้ไขใหม่: เพิ่มกรอบ) ---
         async function startRegCamera() {
             stopCamera();

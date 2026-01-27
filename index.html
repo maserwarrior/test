@@ -3,104 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบเช็คชื่อด้วยใบหน้า AI</title>
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.10/css/pico.min.css">
+    <title>ระบบเช็คชื่อใบหน้าอัจฉริยะ (AI Face Attendance)</title>
     
-    <style>
-        body { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .nav-tabs { display: flex; gap: 10px; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
-        .nav-btn { background: none; border: none; padding: 10px 20px; font-size: 1.1rem; color: #666; cursor: pointer; border-radius: 8px 8px 0 0; transition:0.3s; }
-        .nav-btn:hover { background: #f0f0f0; }
-        .nav-btn.active { background: #1095c1; color: white; font-weight: bold; }
-        .tab-content { display: none; animation: fadeIn 0.4s; }
-        .tab-content.active { display: block; }
-        
-        /* CSS แก้ไขเรื่องกรอบลอยทับวิดีโอ */
-        .cam-wrapper { 
-            position: relative; width: 640px; height: 480px; background: #000; margin: 0 auto; border-radius: 10px; overflow: hidden; 
-            display: flex; justify-content: center; align-items: center;
-        }
-        video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-        canvas { position: absolute; top: 0; left: 0; z-index: 10; } /* canvas อยู่บนสุด */
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
-        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.9em; font-weight: bold; }
-        .present { background: #d4edda; color: #155724; }
-        .absent { background: #f8d7da; color: #721c24; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    <style>
+        /* --- ตั้งค่าพื้นฐาน --- */
+        :root {
+            --primary: #4e54c8;
+            --secondary: #8f94fb;
+            --accent: #ff6b6b;
+            --success: #2ecc71;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        /* --- กล่องหลัก (Main Card) --- */
+        .app-container {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 1000px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            padding: 30px;
+            margin-top: 20px;
+        }
+
+        /* --- Header --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 15px;
+        }
+
+        h1 { margin: 0; color: var(--primary); font-size: 1.5rem; display: flex; align-items: center; gap: 10px; }
+        .ai-status { font-size: 0.9rem; font-weight: 600; padding: 5px 15px; border-radius: 20px; background: #eee; color: #777; transition: 0.3s; }
+        .ai-status.ready { background: #d4edda; color: #155724; }
+
+        /* --- Navigation Tabs --- */
+        .nav-tabs {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            padding: 5px;
+            border-radius: 15px;
+        }
+
+        .nav-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 12px;
+            font-family: 'Prompt', sans-serif;
+            font-size: 1rem;
+            color: #666;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .nav-btn:hover { background: rgba(78, 84, 200, 0.1); color: var(--primary); }
+        .nav-btn.active {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            color: white;
+            box-shadow: 0 4px 15px rgba(78, 84, 200, 0.3);
+            font-weight: 600;
+        }
+
+        /* --- Content Area --- */
+        .tab-content { display: none; animation: slideUp 0.4s ease; }
+        .tab-content.active { display: block; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- Inputs & Grid --- */
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 0.9rem; }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: 'Prompt', sans-serif;
+            font-size: 1rem;
+            transition: 0.3s;
+            box-sizing: border-box; /* สำคัญ */
+        }
+        input:focus { border-color: var(--secondary); outline: none; box-shadow: 0 0 0 3px rgba(143, 148, 251, 0.2); }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        @media (max-width: 768px) { .grid-layout { grid-template-columns: 1fr; } }
+
+        /* --- Buttons --- */
+        .btn {
+            border: none;
+            padding: 12px 25px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: 'Prompt', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(to right, #11998e, #38ef7d); color: white; box-shadow: 0 4px 10px rgba(56, 239, 125, 0.3); }
+        .btn-secondary { background: linear-gradient(to right, #ff9966, #ff5e62); color: white; box-shadow: 0 4px 10px rgba(255, 94, 98, 0.3); }
+        .btn-info { background: linear-gradient(to right, #4facfe, #00f2fe); color: white; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        /* --- Camera Box --- */
+        .cam-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            margin: 0 auto;
+            border: 4px solid #fff;
+        }
+        video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        canvas { position: absolute; top: 0; left: 0; z-index: 10; }
+
+        /* --- Log & Tables --- */
+        .log-box {
+            height: 350px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 10px;
+            background: #fafafa;
+        }
+        .log-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: fadeIn 0.3s;
+        }
+        .log-item i { color: var(--success); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #555; font-weight: 600; }
+        .status-badge { padding: 5px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+        .present { background: #e6fffa; color: #2c7a7b; border: 1px solid #b2f5ea; }
+        .absent { background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; }
+
     </style>
 </head>
 <body>
 
-    <nav><ul><li><strong>🏫 AI Face Attendance</strong></li></ul><ul><li id="aiStatus" style="color:orange;">⏳ กำลังโหลด AI...</li></ul></nav>
+    <div class="app-container">
+        <header>
+            <h1><i class="fas fa-user-check"></i> Face Check <small style="font-size:0.5em; opacity:0.6; margin-left:5px;">System V2</small></h1>
+            <div id="aiStatus" class="ai-status"><i class="fas fa-spinner fa-spin"></i> กำลังโหลดสมอง AI...</div>
+        </header>
 
-    <div class="nav-tabs">
-        <button class="nav-btn active" onclick="setTab('scan', event)">📸 เช็คชื่อ</button>
-        <button class="nav-btn" onclick="setTab('register', event)">📝 ลงทะเบียน</button>
-        <button class="nav-btn" onclick="setTab('dashboard', event)">📊 รายงาน</button>
-    </div>
+        <div class="nav-tabs">
+            <button class="nav-btn active" onclick="setTab('scan', event)">
+                <i class="fas fa-camera"></i> เช็คชื่อ (Scan)
+            </button>
+            <button class="nav-btn" onclick="setTab('register', event)">
+                <i class="fas fa-user-plus"></i> ลงทะเบียน (Register)
+            </button>
+            <button class="nav-btn" onclick="setTab('dashboard', event)">
+                <i class="fas fa-chart-bar"></i> รายงาน (Report)
+            </button>
+        </div>
 
-    <div id="scan" class="tab-content active">
-        <article>
-            <div class="grid">
+        <div id="scan" class="tab-content active">
+            <div class="grid-layout">
                 <div>
-                    <label>ห้องเรียน <input type="text" id="scanClassId" value="TestClass"></label>
-                    <label>วันที่ <input type="date" id="scanDate"></label>
-                    <button onclick="loadStudents()" id="btnLoad">1. โหลดข้อมูล</button>
-                    <button onclick="startScan()" id="btnStartScan" disabled class="secondary">2. เริ่มสแกน</button>
+                    <div class="input-group">
+                        <label>🏫 ห้องเรียน</label>
+                        <input type="text" id="scanClassId" value="TestClass" placeholder="ระบุชื่อห้อง...">
+                    </div>
+                    <div class="input-group">
+                        <label>📅 วันที่เช็คชื่อ</label>
+                        <input type="date" id="scanDate">
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button onclick="loadStudents()" id="btnLoad" class="btn btn-info">
+                            <i class="fas fa-cloud-download-alt"></i> 1. โหลดข้อมูล
+                        </button>
+                        <button onclick="startScan()" id="btnStartScan" disabled class="btn btn-primary">
+                            <i class="fas fa-play"></i> 2. เริ่มสแกน
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <label>📋 ประวัติล่าสุด</label>
+                        <div id="scanLog" class="log-box"></div>
+                    </div>
                 </div>
-                <div style="height:300px; overflow-y:auto; border:1px solid #ccc; padding:10px; background:#f9f9f9;">
-                    <h6>📋 ประวัติการเช็คชื่อ</h6><div id="scanLog"></div>
+
+                <div>
+                    <div class="cam-wrapper" id="scanCamBox">
+                        <video id="scanVideo" autoplay muted playsinline></video>
+                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; z-index:0; text-align:center;">
+                            <i class="fas fa-video-slash" style="font-size:3rem; opacity:0.5;"></i>
+                            <p>กล้องปิดอยู่</p>
+                        </div>
+                    </div>
+                    <p style="text-align:center; margin-top:10px; color:#777; font-size:0.9rem;">
+                        <span style="color:var(--success)">● สีเขียว = ผ่าน</span> &nbsp;|&nbsp; 
+                        <span style="color:red">● สีแดง = เช็คซ้ำ</span>
+                    </p>
                 </div>
             </div>
-            <div class="cam-wrapper" id="scanCamBox" style="margin-top:20px;">
-                <video id="scanVideo" autoplay muted playsinline></video>
-            </div>
-        </article>
-    </div>
+        </div>
 
-    <div id="register" class="tab-content">
-        <article>
-            <div class="grid">
+        <div id="register" class="tab-content">
+            <div class="grid-layout">
                 <div>
-                    <label>ห้องเรียน <input type="text" id="regClassId"></label>
-                    <label>รหัส <input type="text" id="regId"></label>
-                    <label>ชื่อ <input type="text" id="regName"></label>
-                    <button onclick="registerFace()" id="btnReg" disabled>บันทึก</button>
-                    <p id="regStatus"></p>
+                    <h3 style="margin-top:0; color:var(--primary);">👤 ข้อมูลนักเรียนใหม่</h3>
+                    <div class="input-group">
+                        <label>ห้องเรียน</label>
+                        <input type="text" id="regClassId" placeholder="เช่น 1-1">
+                    </div>
+                    <div class="input-group">
+                        <label>รหัสนักเรียน</label>
+                        <input type="text" id="regId" placeholder="เช่น 001">
+                    </div>
+                    <div class="input-group">
+                        <label>ชื่อ-นามสกุล</label>
+                        <input type="text" id="regName" placeholder="เช่น สมชาย รักเรียน">
+                    </div>
+                    
+                    <button onclick="registerFace()" id="btnReg" disabled class="btn btn-success" style="background: var(--success); color:white; margin-top:10px;">
+                        <i class="fas fa-save"></i> บันทึกข้อมูลใบหน้า
+                    </button>
+                    <p id="regStatus" style="margin-top:10px; font-weight:bold; text-align:center;"></p>
                 </div>
+                
                 <div>
-                    <div class="cam-wrapper" id="regCamBox" style="width:100%; height:350px;">
+                    <div class="cam-wrapper" id="regCamBox" style="height: 350px;">
                         <video id="regVideo" autoplay muted playsinline></video>
                     </div>
-                    <button onclick="startRegCamera()" class="outline" style="width:100%; margin-top:10px;">เปิดกล้อง</button>
+                    <button onclick="startRegCamera()" class="btn btn-info" style="margin-top:15px;">
+                        <i class="fas fa-camera"></i> เปิดกล้องลงทะเบียน
+                    </button>
                 </div>
             </div>
-        </article>
-    </div>
+        </div>
 
-    <div id="dashboard" class="tab-content">
-        <article>
-            <div class="grid" style="align-items:end;">
-                <label>ห้อง <input type="text" id="dashClass" value="TestClass"></label>
-                <label>วันที่ <select id="dashDate"><option value="">-- รวม --</option></select></label>
-                <button onclick="loadReport()">🔍 ดูรายงาน</button>
+        <div id="dashboard" class="tab-content">
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+                <div class="grid-layout" style="gap: 15px; grid-template-columns: 1fr 1fr 1fr auto;">
+                    <div>
+                        <label>ห้องเรียน</label>
+                        <input type="text" id="dashClass" value="TestClass">
+                    </div>
+                    <div>
+                        <label>วันที่ (ปล่อยว่างเพื่อดูรวม)</label>
+                        <select id="dashDate"><option value="">-- ภาพรวมทั้งหมด --</option></select>
+                    </div>
+                    <div>
+                        <button onclick="loadReport()" class="btn btn-secondary" style="margin-top: 26px;">
+                            <i class="fas fa-search"></i> เรียกดูรายงาน
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div style="overflow-x:auto; margin-top:20px;">
-                <table role="grid"><thead id="dashHead"></thead><tbody id="dashBody"></tbody></table>
-            </div>
-        </article>
-    </div>
 
-    <script>
-        // 🔥🔥🔥 ต้องใส่ URL ของคุณตรงนี้เท่านั้น ห้ามใช้ URL_APPS_SCRIPT_... 🔥🔥🔥
+            <div style="overflow-x:auto;">
+                <table role="grid">
+                    <thead id="dashHead"></thead>
+                    <tbody id="dashBody">
+                        <tr><td colspan="5" style="text-align:center; color:#999; padding:30px;">
+                            <i class="fas fa-search" style="font-size:2rem; margin-bottom:10px;"></i><br>
+                            กดปุ่ม "เรียกดูรายงาน" เพื่อแสดงข้อมูล
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div> <script>
+        // 🔥🔥🔥 ใส่ URL Apps Script ของคุณตรงนี้ 🔥🔥🔥
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5Icavnzqn8PdDznQYGh5H93FgGbru21GKFDuJRyqJEy6sFHHzYnOMNqhsG96NY0B5kg/exec'; 
         
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
         let faceMatcher = null, currentStream = null, isModelReady = false, reportData = null;
-        let checkedStudents = new Set(); // เก็บรายชื่อคนที่มาแล้ว
+        let checkedStudents = new Set();
 
-        // --- INIT ---
         window.onload = async () => {
             document.getElementById('scanDate').valueAsDate = new Date();
             try {
@@ -110,12 +329,12 @@
                     faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                 ]);
                 isModelReady = true;
-                document.getElementById('aiStatus').innerHTML = "✅ AI พร้อม";
-                document.getElementById('aiStatus').style.color = "green";
+                const statusDiv = document.getElementById('aiStatus');
+                statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> AI พร้อมใช้งาน';
+                statusDiv.classList.add('ready');
             } catch (e) { console.error(e); }
         };
 
-        // --- TABS ---
         function setTab(tabId, event) {
             stopCamera();
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -130,25 +349,24 @@
             document.querySelectorAll('canvas').forEach(c => c.remove());
         }
 
-        // --- SCAN ---
         async function loadStudents() {
             const classId = document.getElementById('scanClassId').value;
-            const btn = document.getElementById('btnLoad'); btn.textContent = "⏳..."; btn.disabled = true;
+            const btn = document.getElementById('btnLoad'); 
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังโหลด...'; btn.disabled = true;
             try {
                 const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getStudents", classId }) });
                 const data = await res.json();
                 if (data.status === "success" && data.students.length > 0) {
                     const labeled = data.students.map(s => new faceapi.LabeledFaceDescriptors(s.name, [new Float32Array(JSON.parse(s.descriptors))]));
                     faceMatcher = new faceapi.FaceMatcher(labeled, 0.6);
-                    
                     checkedStudents.clear();
                     data.students.forEach(s => { if(s.isChecked) checkedStudents.add(s.name); });
-
-                    alert(`โหลด ${data.students.length} คน (มาแล้ว ${checkedStudents.size} คน)`);
+                    alert(`โหลดสำเร็จ ${data.students.length} คน (มาแล้ว ${checkedStudents.size} คน)`);
                     document.getElementById('btnStartScan').disabled = false;
                 } else { alert("ไม่พบข้อมูล"); }
             } catch (e) { alert("Error: " + e); }
-            btn.textContent = "1. โหลดข้อมูล"; btn.disabled = false;
+            btn.innerHTML = originalText; btn.disabled = false;
         }
 
         async function startScan() {
@@ -176,21 +394,21 @@
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
                     resized.forEach(d => {
-                        let label = "Checking...", boxColor = "blue";
+                        let label = "Checking...", boxColor = "#4e54c8";
                         if (faceMatcher) {
                             const best = faceMatcher.findBestMatch(d.descriptor);
                             if (best.label === "unknown") { label = "ไม่รู้จัก"; boxColor = "orange"; }
                             else {
                                 if (checkedStudents.has(best.label)) {
-                                    label = "⛔ มาแล้ว (" + best.label + ")"; boxColor = "red";
+                                    label = "⛔ " + best.label + " (แล้ว)"; boxColor = "#ff6b6b";
                                 } else {
-                                    label = "✅ " + best.toString(); boxColor = "#00ff00";
+                                    label = "✅ " + best.toString(); boxColor = "#2ecc71";
                                     checkedStudents.add(best.label);
                                     logCheckIn(best.label);
                                 }
                             }
                         }
-                        new faceapi.draw.DrawBox(d.detection.box, { label, boxColor }).draw(canvas);
+                        new faceapi.draw.DrawBox(d.detection.box, { label, boxColor, lineWidth: 3 }).draw(canvas);
                     });
                 }, 100);
             } catch (e) { alert("Cam Error: " + e.message); }
@@ -198,11 +416,15 @@
 
         function logCheckIn(name) {
             const time = new Date().toLocaleTimeString('th-TH');
-            document.getElementById('scanLog').innerHTML = `<div style="color:green">✅ ${time} - ${name}</div>` + document.getElementById('scanLog').innerHTML;
+            const logBox = document.getElementById('scanLog');
+            const div = document.createElement('div');
+            div.className = 'log-item';
+            div.innerHTML = `<i class="fas fa-check-circle"></i> <div><strong>${name}</strong><br><small>${time}</small></div>`;
+            logBox.prepend(div);
+            
             fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "checkIn", classId: document.getElementById('scanClassId').value, date: document.getElementById('scanDate').value, id: name }) });
         }
 
-        // --- REGISTER ---
         async function startRegCamera() {
             stopCamera();
             const video = document.getElementById('regVideo');
@@ -221,7 +443,7 @@
                     if (!isModelReady || video.paused) return;
                     const det = await faceapi.detectSingleFace(video).withFaceLandmarks();
                     canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
-                    if(det) new faceapi.draw.DrawBox(faceapi.resizeResults(det, size).detection.box, { label: "Ready", boxColor: "blue" }).draw(canvas);
+                    if(det) new faceapi.draw.DrawBox(faceapi.resizeResults(det, size).detection.box, { label: "พร้อมบันทึก", boxColor: "#4e54c8" }).draw(canvas);
                 }, 100);
                 document.getElementById('btnReg').disabled = false;
             } catch (e) { alert("Cam Error"); }
@@ -231,20 +453,19 @@
             const video = document.getElementById('regVideo');
             const btn = document.getElementById('btnReg');
             const stat = document.getElementById('regStatus');
-            btn.disabled = true; stat.innerHTML = "⏳...";
+            btn.disabled = true; stat.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังประมวลผล...'; stat.style.color = "orange";
             try {
                 const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
                 if (!det) throw new Error("ไม่พบหน้า");
                 await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "register", classId: document.getElementById('regClassId').value, id: document.getElementById('regId').value, name: document.getElementById('regName').value, prefix: "", no: "", descriptors: JSON.stringify(Array.from(det.descriptor)) }) });
-                stat.innerHTML = "✅ สำเร็จ"; stat.style.color = "green";
+                stat.innerHTML = '<i class="fas fa-check-circle"></i> บันทึกสำเร็จ!'; stat.style.color = "green";
                 setTimeout(() => { stat.innerHTML = ""; btn.disabled = false; }, 2000);
-            } catch (e) { stat.innerHTML = "❌ " + e.message; btn.disabled = false; }
+            } catch (e) { stat.innerHTML = "❌ " + e.message; stat.style.color = "red"; btn.disabled = false; }
         }
 
-        // --- REPORT ---
         async function loadReport() {
             const cls = document.getElementById('dashClass').value;
-            const tbody = document.getElementById('dashBody'); tbody.innerHTML = "Loading...";
+            const tbody = document.getElementById('dashBody'); tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ Loading...</td></tr>';
             try {
                 const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getReport", classId: cls }) });
                 reportData = await res.json();
@@ -261,18 +482,23 @@
             let html = "";
             
             if (date) {
-                thead.innerHTML = `<tr><th>ชื่อ</th><th>สถานะ (${date})</th></tr>`;
+                thead.innerHTML = `<tr><th>ชื่อ-นามสกุล</th><th>สถานะ (${date})</th></tr>`;
                 reportData.students.forEach(s => {
                     const st = s.attendance[date] || "ขาด";
-                    html += `<tr><td>${s.name}</td><td><span class="status-badge ${st!=='ขาด'?'present':'absent'}">${st!=='ขาด'?'✅ '+st:'❌ ขาด'}</span></td></tr>`;
+                    const badgeClass = st !== 'ขาด' ? 'present' : 'absent';
+                    const icon = st !== 'ขาด' ? '<i class="fas fa-check"></i>' : '<i class="fas fa-times"></i>';
+                    html += `<tr><td>${s.name}</td><td><span class="status-badge ${badgeClass}">${icon} ${st}</span></td></tr>`;
                 });
             } else {
-                let h = "<tr><th>ชื่อ</th>";
+                let h = "<tr><th>ชื่อ-นามสกุล</th>";
                 reportData.dates.forEach(d => h += `<th>${d.split('/')[0]}/${d.split('/')[1]}</th>`);
                 thead.innerHTML = h + "</tr>";
                 reportData.students.forEach(s => {
                     html += `<tr><td>${s.name}</td>`;
-                    reportData.dates.forEach(d => html += `<td>${(s.attendance[d] && s.attendance[d] !== "ขาด") ? '✅' : '❌'}</td>`);
+                    reportData.dates.forEach(d => {
+                         const isPresent = (s.attendance[d] && s.attendance[d] !== "ขาด");
+                         html += `<td>${isPresent ? '<span class="status-badge present"><i class="fas fa-check"></i></span>' : '<span class="status-badge absent"><i class="fas fa-times"></i></span>'}</td>`;
+                    });
                     html += "</tr>";
                 });
             }

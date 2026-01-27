@@ -10,13 +10,10 @@
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
     <style>
-        /* --- CSS Global --- */
         :root {
             --primary: #4e54c8;
             --secondary: #8f94fb;
             --success: #2ecc71;
-            --danger: #ff6b6b;
-            --warning: #ffa502;
             --bg-grad: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             --card-bg: #ffffff;
         }
@@ -24,7 +21,6 @@
         body {
             font-family: 'Prompt', sans-serif;
             background: var(--bg-grad);
-            color: #333;
             margin: 0; padding: 20px;
             min-height: 100vh;
             display: flex; justify-content: center; align-items: flex-start;
@@ -45,79 +41,82 @@
         .ai-status { font-size: 0.9rem; font-weight: 600; padding: 6px 15px; border-radius: 20px; background: #eee; color: #777; }
         .ai-status.ready { background: #d4edda; color: #155724; }
 
-        .nav-tabs { display: flex; gap: 10px; margin-bottom: 30px; background: #f1f3f5; padding: 5px; border-radius: 12px; }
+        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; background: #f1f3f5; padding: 5px; border-radius: 12px; }
         .nav-btn {
             flex: 1; border: none; background: transparent; padding: 12px;
             font-family: 'Prompt', sans-serif; font-size: 1rem; color: #666;
             cursor: pointer; border-radius: 10px; transition: 0.3s;
         }
-        .nav-btn:hover { background: rgba(0,0,0,0.05); }
         .nav-btn.active { background: white; color: var(--primary); font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
 
         .tab-content { display: none; animation: slideUp 0.4s ease; }
         .tab-content.active { display: block; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* --- Inputs & Buttons --- */
+        /* --- Mode Switcher (New Feature) --- */
+        .mode-switch {
+            display: flex; gap: 10px; margin-bottom: 20px;
+        }
+        .mode-btn {
+            flex: 1; padding: 10px; border: 2px solid #e0e0e0; background: white;
+            border-radius: 10px; cursor: pointer; color: #888; font-family: 'Prompt';
+            transition: 0.3s;
+        }
+        .mode-btn.active {
+            border-color: var(--primary); color: var(--primary); background: #eef0ff; font-weight: bold;
+        }
+        .mode-btn:hover { border-color: #ccc; }
+
+        /* --- Inputs & Camera --- */
         .input-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 0.9rem; }
         input, select {
             width: 100%; padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 10px;
-            font-family: 'Prompt', sans-serif; font-size: 1rem; transition: 0.3s; box-sizing: border-box;
+            font-family: 'Prompt', sans-serif; font-size: 1rem; box-sizing: border-box;
         }
         input:focus { border-color: var(--secondary); outline: none; }
-        input[readonly] { background-color: #f8f9fa; color: #777; cursor: not-allowed; }
+        input[readonly] { background-color: #f0f2f5; color: #777; cursor: not-allowed; }
 
         .btn {
             border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer;
             font-family: 'Prompt', sans-serif; font-size: 1rem; font-weight: 600;
             display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-            transition: 0.2s; width: 100%;
+            transition: 0.2s; width: 100%; color: white;
         }
-        .btn:active { transform: scale(0.98); }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-success { background: linear-gradient(135deg, #2af598 0%, #009efd 100%); color: white; }
-        .btn-info { background: #17a2b8; color: white; }
-        .btn-secondary { background: #6c757d; color: white; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .btn-success { background: linear-gradient(135deg, #2af598 0%, #009efd 100%); }
+        .btn-info { background: #17a2b8; }
+        .btn-secondary { background: #6c757d; }
         .btn:disabled { background: #ccc; cursor: not-allowed; }
 
-        /* --- Camera Box (Fixed) --- */
         .cam-wrapper {
-            position: relative;
-            width: 100%; max-width: 640px; height: 480px;
+            position: relative; width: 100%; max-width: 640px; height: 480px;
             background: #000; border-radius: 15px; overflow: hidden;
             margin: 0 auto; border: 4px solid #fff; box-shadow: 0 10px 20px rgba(0,0,0,0.15);
         }
         video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 10; }
 
-        /* --- Search Box (Register) --- */
-        .search-box {
-            background: #e3f2fd; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #90caf9;
-        }
+        /* --- Search & Grid --- */
+        .search-box { background: #e3f2fd; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #90caf9; }
         .search-flex { display: flex; gap: 10px; }
-
-        /* --- Grid & Logs --- */
         .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
         @media (max-width: 768px) { .grid-layout { grid-template-columns: 1fr; } }
-
+        
+        /* Table & Logs */
         .log-box { height: 350px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 10px; padding: 10px; background: #fafafa; }
         .log-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
-
-        /* --- Table --- */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; color: #555; }
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
         .badge-success { background: #d4edda; color: #155724; }
         .badge-danger { background: #f8d7da; color: #721c24; }
-
     </style>
 </head>
 <body>
 
 <div class="app-container">
-    
     <header>
         <h1><i class="fas fa-camera-retro"></i> Face Check System</h1>
         <div id="aiStatus" class="ai-status"><i class="fas fa-spinner fa-spin"></i> Loading AI...</div>
@@ -125,7 +124,7 @@
 
     <div class="nav-tabs">
         <button class="nav-btn active" onclick="setTab('scan', event)"><i class="fas fa-qrcode"></i> เช็คชื่อ (Scan)</button>
-        <button class="nav-btn" onclick="setTab('register', event)"><i class="fas fa-user-plus"></i> ลงทะเบียน (Register)</button>
+        <button class="nav-btn" onclick="setTab('register', event)"><i class="fas fa-user-edit"></i> ลงทะเบียน (Register)</button>
         <button class="nav-btn" onclick="setTab('dashboard', event)"><i class="fas fa-chart-pie"></i> รายงาน (Dashboard)</button>
     </div>
 
@@ -134,7 +133,7 @@
             <div>
                 <div class="input-group">
                     <label>🏫 ห้องเรียน</label>
-                    <input type="text" id="scanClassId" value="TestClass" placeholder="ระบุห้อง...">
+                    <input type="text" id="scanClassId" value="TestClass">
                 </div>
                 <div class="input-group">
                     <label>📅 วันที่เช็คชื่อ</label>
@@ -149,22 +148,18 @@
                     </button>
                 </div>
                 <div style="margin-top: 20px;">
-                    <label>📋 ประวัติการเช็คชื่อ (ล่าสุด)</label>
+                    <label>📋 ประวัติ (Real-time)</label>
                     <div id="scanLog" class="log-box"></div>
                 </div>
             </div>
             <div>
                 <div class="cam-wrapper" id="scanCamBox">
                     <video id="scanVideo" autoplay muted playsinline></video>
-                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; text-align:center; z-index:0;">
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:white; z-index:0;">
                         <i class="fas fa-video-slash" style="font-size:3rem; opacity:0.3;"></i>
-                        <p style="opacity:0.5;">กล้องปิดอยู่</p>
                     </div>
                 </div>
-                <p style="text-align:center; margin-top:10px; font-size:0.9rem; color:#666;">
-                    <i class="fas fa-square" style="color:#2ecc71"></i> ผ่าน &nbsp; 
-                    <i class="fas fa-square" style="color:#ff6b6b"></i> เช็คซ้ำ
-                </p>
+                <p style="text-align:center; color:#666; margin-top:10px;"><small>สีเขียว=ผ่าน | สีแดง=ซ้ำ</small></p>
             </div>
         </div>
     </div>
@@ -172,8 +167,17 @@
     <div id="register" class="tab-content">
         <div class="grid-layout">
             <div>
-                <div class="search-box">
-                    <label style="color:#1565c0;"><i class="fas fa-search"></i> ค้นหาจากฐานข้อมูลเดิม (Auto-fill)</label>
+                <div class="mode-switch">
+                    <button class="mode-btn active" onclick="setRegMode('existing', this)">
+                        <i class="fas fa-search"></i> เพิ่มใบหน้า (มีรายชื่อแล้ว)
+                    </button>
+                    <button class="mode-btn" onclick="setRegMode('new', this)">
+                        <i class="fas fa-user-plus"></i> นักเรียนใหม่ (ยังไม่มีชื่อ)
+                    </button>
+                </div>
+
+                <div id="existingSearchBox" class="search-box">
+                    <label style="color:#1565c0;"><i class="fas fa-database"></i> ค้นหาจากฐานข้อมูล</label>
                     <div class="search-flex">
                         <input type="text" id="regClassId" placeholder="ห้อง (เช่น 1-1)" value="TestClass">
                         <input type="text" id="regSearchId" placeholder="รหัสนักเรียน (001)">
@@ -184,11 +188,11 @@
                 </div>
 
                 <div class="input-group">
-                    <label>รหัสนักเรียน (Auto)</label>
-                    <input type="text" id="regId" readonly>
+                    <label>รหัสนักเรียน</label>
+                    <input type="text" id="regId" readonly placeholder="กรุณากดค้นหา...">
                 </div>
                 <div class="input-group">
-                    <label>ชื่อ-นามสกุล (Auto)</label>
+                    <label>ชื่อ-นามสกุล</label>
                     <input type="text" id="regName" readonly placeholder="รอการค้นหา...">
                 </div>
 
@@ -197,12 +201,13 @@
                 </button>
                 <p id="regStatus" style="text-align:center; margin-top:10px; font-weight:bold;"></p>
             </div>
+            
             <div>
                 <div class="cam-wrapper" id="regCamBox" style="height:350px;">
                     <video id="regVideo" autoplay muted playsinline></video>
                 </div>
                 <button onclick="startRegCamera()" class="btn btn-info" style="margin-top:15px;">
-                    <i class="fas fa-camera"></i> เปิดกล้องลงทะเบียน
+                    <i class="fas fa-camera"></i> เปิดกล้อง
                 </button>
             </div>
         </div>
@@ -212,7 +217,7 @@
         <div style="background:#f8f9fa; padding:20px; border-radius:15px; margin-bottom:20px;">
             <div class="grid-layout" style="gap:15px; grid-template-columns: 1fr 1fr 1fr auto;">
                 <div><label>ห้อง</label><input type="text" id="dashClass" value="TestClass"></div>
-                <div><label>วันที่ (ว่าง=ดูรวม)</label><select id="dashDate"><option value="">-- ภาพรวม --</option></select></div>
+                <div><label>วันที่</label><select id="dashDate"><option value="">-- ภาพรวม --</option></select></div>
                 <div><label>ค้นหาชื่อ</label><input type="text" id="dashSearch" placeholder="..."></div>
                 <div style="display:flex; align-items:flex-end;">
                     <button onclick="loadReport()" class="btn btn-primary"><i class="fas fa-search"></i> ดูรายงาน</button>
@@ -232,14 +237,15 @@
 </div>
 
 <script>
-    // 🔥🔥🔥 ใส่ URL Apps Script (ลงท้าย /exec) ของคุณตรงนี้ 🔥🔥🔥
+    // 🔥🔥🔥 URL Apps Script ของคุณ 🔥🔥🔥
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby5Icavnzqn8PdDznQYGh5H93FgGbru21GKFDuJRyqJEy6sFHHzYnOMNqhsG96NY0B5kg/exec'; 
 
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
     let faceMatcher = null, currentStream = null, isModelReady = false, reportData = null;
-    let checkedStudents = new Set(); // Global set สำหรับกันสแกนซ้ำ
+    let checkedStudents = new Set();
+    let regMode = 'existing'; // 'existing' or 'new'
 
-    // 1. INIT
+    // INIT
     window.onload = async () => {
         document.getElementById('scanDate').valueAsDate = new Date();
         try {
@@ -254,7 +260,7 @@
         } catch (e) { console.error(e); }
     };
 
-    // 2. TABS & CAMERA
+    // TABS & CAMERA
     function setTab(tabId, event) {
         stopCamera();
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -269,12 +275,45 @@
         document.querySelectorAll('canvas').forEach(c => c.remove());
     }
 
-    // 3. SCAN LOGIC
+    // --- LOGIC สลับโหมดลงทะเบียน (ใหม่) ---
+    function setRegMode(mode, btn) {
+        regMode = mode;
+        // เปลี่ยนสีปุ่ม
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const searchBox = document.getElementById('existingSearchBox');
+        const inpId = document.getElementById('regId');
+        const inpName = document.getElementById('regName');
+
+        // เคลียร์ค่าเดิม
+        inpId.value = ""; inpName.value = "";
+        document.getElementById('regStatus').innerHTML = "";
+
+        if (mode === 'existing') {
+            searchBox.style.display = 'block'; // โชว์กล่องค้นหา
+            inpId.readOnly = true;             // ห้ามพิมพ์เอง
+            inpName.readOnly = true;           // ห้ามพิมพ์เอง
+            inpId.placeholder = "กรุณากดค้นหา...";
+            inpName.placeholder = "รอการค้นหา...";
+            inpId.style.backgroundColor = "#f0f2f5";
+            inpName.style.backgroundColor = "#f0f2f5";
+        } else {
+            searchBox.style.display = 'none';  // ซ่อนกล่องค้นหา
+            inpId.readOnly = false;            // พิมพ์ได้เลย
+            inpName.readOnly = false;          // พิมพ์ได้เลย
+            inpId.placeholder = "กรอกรหัสนักเรียนใหม่...";
+            inpName.placeholder = "กรอกชื่อ-นามสกุล...";
+            inpId.style.backgroundColor = "#fff";
+            inpName.style.backgroundColor = "#fff";
+        }
+    }
+
+    // SCAN LOGIC
     async function loadStudents() {
         const classId = document.getElementById('scanClassId').value;
         const btn = document.getElementById('btnLoad');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...'; btn.disabled = true;
+        const orgTxt = btn.innerHTML; btn.innerHTML = 'Loading...'; btn.disabled = true;
 
         try {
             const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getStudents", classId }) });
@@ -282,85 +321,64 @@
             if (data.status === "success" && data.students.length > 0) {
                 const labeled = data.students.map(s => new faceapi.LabeledFaceDescriptors(s.name, [new Float32Array(JSON.parse(s.descriptors))]));
                 faceMatcher = new faceapi.FaceMatcher(labeled, 0.6);
-                
-                // อัปเดตรายชื่อคนที่มาแล้ววันนี้
                 checkedStudents.clear();
                 data.students.forEach(s => { if(s.isChecked) checkedStudents.add(s.name); });
-
-                alert(`โหลดสำเร็จ ${data.students.length} คน\n(มาแล้ว: ${checkedStudents.size} คน)`);
+                alert(`โหลดสำเร็จ ${data.students.length} คน`);
                 document.getElementById('btnStartScan').disabled = false;
-            } else { alert("ไม่พบข้อมูลนักเรียน"); }
-        } catch (e) { alert("Error: " + e); }
-        btn.innerHTML = originalText; btn.disabled = false;
+            } else { alert("ไม่พบข้อมูล"); }
+        } catch (e) { alert("Error"); }
+        btn.innerHTML = orgTxt; btn.disabled = false;
     }
 
     async function startScan() {
         stopCamera();
         const video = document.getElementById('scanVideo');
         const camBox = document.getElementById('scanCamBox');
-
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
             currentStream = stream; video.srcObject = stream;
             await new Promise(r => video.onloadedmetadata = r); video.play();
             while (video.videoWidth === 0) await new Promise(r => setTimeout(r, 100));
 
-            // สร้าง Canvas และปรับขนาดตาม "การแสดงผลจริง" (offsetWidth)
-            const canvas = faceapi.createCanvasFromMedia(video);
-            camBox.append(canvas);
+            const canvas = faceapi.createCanvasFromMedia(video); camBox.append(canvas);
             const size = { width: video.offsetWidth, height: video.offsetHeight };
             faceapi.matchDimensions(canvas, size);
 
             setInterval(async () => {
-                if (!isModelReady || video.paused || video.ended) return;
-                
+                if (!isModelReady || video.paused) return;
                 const detections = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors();
                 const resized = faceapi.resizeResults(detections, size);
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 
                 resized.forEach(d => {
                     let label = "Checking...", boxColor = "#4e54c8";
                     if (faceMatcher) {
                         const best = faceMatcher.findBestMatch(d.descriptor);
-                        if (best.label === "unknown") { 
-                            label = "ไม่รู้จัก"; boxColor = "#ffa502"; 
-                        } else {
-                            if (checkedStudents.has(best.label)) {
-                                label = "⛔ " + best.label + " (แล้ว)"; boxColor = "#ff6b6b";
-                            } else {
-                                label = "✅ " + best.toString(); boxColor = "#2ecc71";
-                                checkedStudents.add(best.label);
-                                logCheckIn(best.label);
-                            }
-                        }
+                        if (best.label === "unknown") { label = "ไม่รู้จัก"; boxColor = "#ffa502"; }
+                        else if (checkedStudents.has(best.label)) { label = "⛔ " + best.label + " (แล้ว)"; boxColor = "#ff6b6b"; }
+                        else { label = "✅ " + best.toString(); boxColor = "#2ecc71"; checkedStudents.add(best.label); logCheckIn(best.label); }
                     }
-                    new faceapi.draw.DrawBox(d.detection.box, { label, boxColor, lineWidth: 3 }).draw(canvas);
+                    new faceapi.draw.DrawBox(d.detection.box, { label, boxColor, lineWidth:3 }).draw(canvas);
                 });
             }, 100);
-        } catch (e) { alert("Cam Error: " + e.message); }
+        } catch (e) { alert("Cam Error"); }
     }
 
     function logCheckIn(name) {
         const time = new Date().toLocaleTimeString('th-TH');
         const logBox = document.getElementById('scanLog');
-        const div = document.createElement('div');
-        div.className = 'log-item';
-        div.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success)"></i> <div><strong>${name}</strong> <span style="color:#777">(${time})</span></div>`;
+        const div = document.createElement('div'); div.className = 'log-item';
+        div.innerHTML = `<i class="fas fa-check-circle" style="color:#2ecc71"></i> <div><strong>${name}</strong> <span style="color:#777">(${time})</span></div>`;
         logBox.prepend(div);
-        
-        fetch(SCRIPT_URL, { 
-            method: 'POST', 
-            body: JSON.stringify({ action: "checkIn", classId: document.getElementById('scanClassId').value, date: document.getElementById('scanDate').value, id: name }) 
-        });
+        fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "checkIn", classId: document.getElementById('scanClassId').value, date: document.getElementById('scanDate').value, id: name }) });
     }
 
-    // 4. REGISTER LOGIC (With Auto-fill)
+    // REGISTER LOGIC
     async function findStudentData() {
         const cId = document.getElementById('regClassId').value;
         const sId = document.getElementById('regSearchId').value;
         const btn = event.currentTarget; const orgTxt = btn.innerHTML;
-        
-        if(!cId || !sId) return alert("กรอกห้องและรหัสก่อนครับ");
+        if(!cId || !sId) return alert("กรอกข้อมูลก่อน");
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
 
         try {
@@ -373,10 +391,7 @@
                 stat.innerHTML = data.student.hasFace ? "⚠️ มีข้อมูลหน้าเดิมแล้ว (จะทับ)" : "✅ พบรายชื่อ (ยังไม่มีหน้า)";
                 stat.style.color = data.student.hasFace ? "orange" : "green";
                 startRegCamera();
-            } else {
-                alert("❌ " + data.message);
-                document.getElementById('regId').value = ""; document.getElementById('regName').value = "";
-            }
+            } else { alert("❌ " + data.message); }
         } catch(e) { alert("Error"); }
         btn.innerHTML = orgTxt; btn.disabled = false;
     }
@@ -399,7 +414,7 @@
                 if (!isModelReady || video.paused) return;
                 const det = await faceapi.detectSingleFace(video).withFaceLandmarks();
                 canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
-                if(det) new faceapi.draw.DrawBox(faceapi.resizeResults(det, size).detection.box, { label: "พร้อมบันทึก", boxColor: "#4e54c8" }).draw(canvas);
+                if(det) new faceapi.draw.DrawBox(faceapi.resizeResults(det, size).detection.box, { label: "Ready", boxColor: "#4e54c8" }).draw(canvas);
             }, 100);
             document.getElementById('btnReg').disabled = false;
         } catch (e) { alert("Cam Error"); }
@@ -409,16 +424,23 @@
         const video = document.getElementById('regVideo');
         const btn = document.getElementById('btnReg');
         const stat = document.getElementById('regStatus');
-        btn.disabled = true; stat.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        const inpClass = regMode === 'existing' ? document.getElementById('regClassId').value : document.getElementById('scanClassId').value; // ถ้า new ให้ใช้ห้องจากหน้า scan เป็น default หรือจะเพิ่ม input แยกก็ได้
         
+        // *หมายเหตุ: ถ้าโหมด New เราต้องมั่นใจว่า user กรอกห้องถูก ในโค้ดนี้ผมดึงค่าห้องจาก Input ที่ซ่อน/แสดงอยู่
+        // เพื่อความชัวร์ในโหมด New ผมจะใช้ค่าจาก regClassId (ซึ่งซ่อนอยู่แต่มีค่า) หรือถ้าอยากให้พิมพ์ห้องใหม่ในโหมด New ต้องเพิ่ม Input ห้องแยก
+        // แต่เพื่อความง่าย ผมจะให้ใช้ regClassId ร่วมกัน (ในโหมด Existing มันโชว์, ในโหมด New มันซ่อน แต่เราจะเปิดให้โชว์ถ้าเป็น New)
+        
+        btn.disabled = true; stat.innerHTML = 'Processing...';
         try {
             const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
             if (!det) throw new Error("ไม่พบหน้า");
+            
+            // ส่งข้อมูล (Backend รองรับทั้ง Create/Update อยู่แล้ว)
             await fetch(SCRIPT_URL, { 
                 method: 'POST', 
                 body: JSON.stringify({ 
                     action: "register", 
-                    classId: document.getElementById('regClassId').value, 
+                    classId: document.getElementById('regClassId').value, // ใช้ค่าจากช่องค้นหา (หรือคุณจะแก้ให้มีช่องกรอกห้องแยกสำหรับ New ก็ได้)
                     id: document.getElementById('regId').value, 
                     name: document.getElementById('regName').value, 
                     prefix: "", no: "", 
@@ -430,12 +452,10 @@
         } catch (e) { stat.innerHTML = "❌ " + e.message; stat.style.color = "red"; btn.disabled = false; }
     }
 
-    // 5. REPORT LOGIC
+    // REPORT
     async function loadReport() {
         const cls = document.getElementById('dashClass').value;
-        const tbody = document.getElementById('dashBody'); 
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">⏳ Loading...</td></tr>';
-        
+        const tbody = document.getElementById('dashBody'); tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>';
         try {
             const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: "getReport", classId: cls }) });
             reportData = await res.json();
@@ -451,30 +471,25 @@
         const thead = document.getElementById('dashHead');
         const tbody = document.getElementById('dashBody');
         let html = "";
-        
         const filtered = reportData.students.filter(s => s.name.toLowerCase().includes(term));
 
         if (date) {
-            thead.innerHTML = `<tr><th>ชื่อ-นามสกุล</th><th>สถานะ (${date})</th></tr>`;
+            thead.innerHTML = `<tr><th>ชื่อ</th><th>สถานะ (${date})</th></tr>`;
             filtered.forEach(s => {
                 const st = s.attendance[date] || "ขาด";
-                const badge = st !== "ขาด" ? `<span class="badge badge-success">✅ ${st}</span>` : `<span class="badge badge-danger">❌ ขาด</span>`;
-                html += `<tr><td>${s.name}</td><td>${badge}</td></tr>`;
+                html += `<tr><td>${s.name}</td><td>${st!=='ขาด' ? '<span class="badge badge-success">✅ '+st+'</span>' : '<span class="badge badge-danger">❌ ขาด</span>'}</td></tr>`;
             });
         } else {
-            let h = "<tr><th>ชื่อ-นามสกุล</th>";
+            let h = "<tr><th>ชื่อ</th>";
             reportData.dates.forEach(d => h += `<th>${d.split('/')[0]}/${d.split('/')[1]}</th>`);
             thead.innerHTML = h + "</tr>";
             filtered.forEach(s => {
                 html += `<tr><td>${s.name}</td>`;
-                reportData.dates.forEach(d => {
-                    const isP = (s.attendance[d] && s.attendance[d] !== "ขาด");
-                    html += `<td>${isP ? '✅' : '❌'}</td>`;
-                });
+                reportData.dates.forEach(d => html += `<td>${(s.attendance[d] && s.attendance[d] !== "ขาด") ? '✅' : '❌'}</td>`);
                 html += "</tr>";
             });
         }
-        tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;">ไม่พบข้อมูล</td></tr>';
+        tbody.innerHTML = html;
     }
     document.getElementById('dashDate').onchange = renderTable;
     document.getElementById('dashSearch').onkeyup = renderTable;

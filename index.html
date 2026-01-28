@@ -53,19 +53,13 @@
         .tab-content.active { display: block; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* --- Mode Switcher (New Feature) --- */
-        .mode-switch {
-            display: flex; gap: 10px; margin-bottom: 20px;
-        }
+        /* --- Mode Switcher --- */
+        .mode-switch { display: flex; gap: 10px; margin-bottom: 20px; }
         .mode-btn {
             flex: 1; padding: 10px; border: 2px solid #e0e0e0; background: white;
-            border-radius: 10px; cursor: pointer; color: #888; font-family: 'Prompt';
-            transition: 0.3s;
+            border-radius: 10px; cursor: pointer; color: #888; font-family: 'Prompt'; transition: 0.3s;
         }
-        .mode-btn.active {
-            border-color: var(--primary); color: var(--primary); background: #eef0ff; font-weight: bold;
-        }
-        .mode-btn:hover { border-color: #ccc; }
+        .mode-btn.active { border-color: var(--primary); color: var(--primary); background: #eef0ff; font-weight: bold; }
 
         /* --- Inputs & Camera --- */
         .input-group { margin-bottom: 15px; }
@@ -97,13 +91,11 @@
         video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 10; }
 
-        /* --- Search & Grid --- */
         .search-box { background: #e3f2fd; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #90caf9; }
         .search-flex { display: flex; gap: 10px; }
         .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
         @media (max-width: 768px) { .grid-layout { grid-template-columns: 1fr; } }
         
-        /* Table & Logs */
         .log-box { height: 350px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 10px; padding: 10px; background: #fafafa; }
         .log-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -137,7 +129,7 @@
                 </div>
                 <div class="input-group">
                     <label>📅 วันที่เช็คชื่อ</label>
-                    <input type="date" id="scanDate">
+                    <input type="date" id="scanDate" onchange="resetScan()">
                 </div>
                 <div style="display: flex; gap: 10px; margin-top:20px;">
                     <button onclick="loadStudents()" id="btnLoad" class="btn btn-info">
@@ -243,9 +235,8 @@
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
     let faceMatcher = null, currentStream = null, isModelReady = false, reportData = null;
     let checkedStudents = new Set();
-    let regMode = 'existing'; // 'existing' or 'new'
+    let regMode = 'existing'; 
 
-    // INIT
     window.onload = async () => {
         document.getElementById('scanDate').valueAsDate = new Date();
         try {
@@ -260,7 +251,6 @@
         } catch (e) { console.error(e); }
     };
 
-    // TABS & CAMERA
     function setTab(tabId, event) {
         stopCamera();
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -275,10 +265,16 @@
         document.querySelectorAll('canvas').forEach(c => c.remove());
     }
 
-    // --- LOGIC สลับโหมดลงทะเบียน (ใหม่) ---
+    // --- ฟังก์ชันรีเซ็ตระบบเมื่อเปลี่ยนวันที่ ---
+    function resetScan() {
+        checkedStudents.clear(); // ล้างความจำคนมาเรียน
+        alert("⚠️ เปลี่ยนวันที่แล้ว: ระบบจะโหลดข้อมูลใหม่เพื่อเช็คสถานะของวันนี้");
+        loadStudents(); // บังคับโหลดใหม่เลย เพื่อดูว่าวันนี้ใครมาแล้วบ้าง
+    }
+
+    // MODE SWITCHER
     function setRegMode(mode, btn) {
         regMode = mode;
-        // เปลี่ยนสีปุ่ม
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
@@ -286,26 +282,19 @@
         const inpId = document.getElementById('regId');
         const inpName = document.getElementById('regName');
 
-        // เคลียร์ค่าเดิม
         inpId.value = ""; inpName.value = "";
         document.getElementById('regStatus').innerHTML = "";
 
         if (mode === 'existing') {
-            searchBox.style.display = 'block'; // โชว์กล่องค้นหา
-            inpId.readOnly = true;             // ห้ามพิมพ์เอง
-            inpName.readOnly = true;           // ห้ามพิมพ์เอง
-            inpId.placeholder = "กรุณากดค้นหา...";
-            inpName.placeholder = "รอการค้นหา...";
-            inpId.style.backgroundColor = "#f0f2f5";
-            inpName.style.backgroundColor = "#f0f2f5";
+            searchBox.style.display = 'block';
+            inpId.readOnly = true; inpName.readOnly = true;
+            inpId.placeholder = "กรุณากดค้นหา..."; inpName.placeholder = "รอการค้นหา...";
+            inpId.style.backgroundColor = "#f0f2f5"; inpName.style.backgroundColor = "#f0f2f5";
         } else {
-            searchBox.style.display = 'none';  // ซ่อนกล่องค้นหา
-            inpId.readOnly = false;            // พิมพ์ได้เลย
-            inpName.readOnly = false;          // พิมพ์ได้เลย
-            inpId.placeholder = "กรอกรหัสนักเรียนใหม่...";
-            inpName.placeholder = "กรอกชื่อ-นามสกุล...";
-            inpId.style.backgroundColor = "#fff";
-            inpName.style.backgroundColor = "#fff";
+            searchBox.style.display = 'none';
+            inpId.readOnly = false; inpName.readOnly = false;
+            inpId.placeholder = "กรอกรหัสนักเรียนใหม่..."; inpName.placeholder = "กรอกชื่อ-นามสกุล...";
+            inpId.style.backgroundColor = "#fff"; inpName.style.backgroundColor = "#fff";
         }
     }
 
@@ -323,7 +312,7 @@
                 faceMatcher = new faceapi.FaceMatcher(labeled, 0.6);
                 checkedStudents.clear();
                 data.students.forEach(s => { if(s.isChecked) checkedStudents.add(s.name); });
-                alert(`โหลดสำเร็จ ${data.students.length} คน`);
+                alert(`โหลดสำเร็จ ${data.students.length} คน (มาแล้ว: ${checkedStudents.size} คน)`);
                 document.getElementById('btnStartScan').disabled = false;
             } else { alert("ไม่พบข้อมูล"); }
         } catch (e) { alert("Error"); }
@@ -424,23 +413,18 @@
         const video = document.getElementById('regVideo');
         const btn = document.getElementById('btnReg');
         const stat = document.getElementById('regStatus');
-        const inpClass = regMode === 'existing' ? document.getElementById('regClassId').value : document.getElementById('scanClassId').value; // ถ้า new ให้ใช้ห้องจากหน้า scan เป็น default หรือจะเพิ่ม input แยกก็ได้
-        
-        // *หมายเหตุ: ถ้าโหมด New เราต้องมั่นใจว่า user กรอกห้องถูก ในโค้ดนี้ผมดึงค่าห้องจาก Input ที่ซ่อน/แสดงอยู่
-        // เพื่อความชัวร์ในโหมด New ผมจะใช้ค่าจาก regClassId (ซึ่งซ่อนอยู่แต่มีค่า) หรือถ้าอยากให้พิมพ์ห้องใหม่ในโหมด New ต้องเพิ่ม Input ห้องแยก
-        // แต่เพื่อความง่าย ผมจะให้ใช้ regClassId ร่วมกัน (ในโหมด Existing มันโชว์, ในโหมด New มันซ่อน แต่เราจะเปิดให้โชว์ถ้าเป็น New)
+        const cId = regMode === 'existing' ? document.getElementById('regClassId').value : document.getElementById('scanClassId').value;
         
         btn.disabled = true; stat.innerHTML = 'Processing...';
         try {
             const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
             if (!det) throw new Error("ไม่พบหน้า");
             
-            // ส่งข้อมูล (Backend รองรับทั้ง Create/Update อยู่แล้ว)
             await fetch(SCRIPT_URL, { 
                 method: 'POST', 
                 body: JSON.stringify({ 
                     action: "register", 
-                    classId: document.getElementById('regClassId').value, // ใช้ค่าจากช่องค้นหา (หรือคุณจะแก้ให้มีช่องกรอกห้องแยกสำหรับ New ก็ได้)
+                    classId: document.getElementById('regClassId').value, 
                     id: document.getElementById('regId').value, 
                     name: document.getElementById('regName').value, 
                     prefix: "", no: "", 
